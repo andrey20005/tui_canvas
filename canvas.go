@@ -1,9 +1,7 @@
 package tuicanvas
 
 import (
-	"bufio"
-	"os"
-	"strconv"
+	"sync"
 )
 
 // Canvas представляет собой двумерный холст для рисования в терминале.
@@ -11,6 +9,7 @@ type Canvas struct {
 	data   [][]Color
 	width  uint
 	height uint
+	mu     sync.Mutex
 }
 
 // NewCanvas создает новый холст заданного размера, заполненный черным цветом.
@@ -34,6 +33,9 @@ func NewCanvas(width, height uint) *Canvas {
 // Если новый размер больше — свободное пространство заполняется черным цветом.
 // Если новый размер меньше — изображение центрированно обрезается.
 func (c *Canvas) Resize(newWidth, newHeight uint) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	// Если размеры не изменились, ничего не делаем
 	if c.width == newWidth && c.height == newHeight {
 		return
@@ -115,6 +117,9 @@ func (c *Canvas) Height() uint { return c.height }
 // Fill закрашивает весь холст одним сплошным цветом.
 // Это самый быстрый способ очистить экран или задать базовый фон.
 func (c *Canvas) Fill(color Color) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	for y := uint(0); y < c.height; y++ {
 		for x := uint(0); x < c.width; x++ {
 			c.data[y][x] = color
@@ -132,6 +137,9 @@ type ShaderCoordsAlphaFn func(x, y float64) (Color, float64)
 
 // FillShader индицирует каждый пиксель по его целочисленным индексам (x, y)
 func (c *Canvas) FillShader(shader ShaderFn) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	for y := uint(0); y < c.height; y++ {
 		for x := uint(0); x < c.width; x++ {
 			c.data[y][x] = shader(int(x), int(y))
@@ -141,6 +149,9 @@ func (c *Canvas) FillShader(shader ShaderFn) {
 
 // FillShaderAlpha красит холст с учетом альфа-канала (смешивает новый цвет с текущим фоном)
 func (c *Canvas) FillShaderAlpha(shader ShaderAlphaFn) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	for y := uint(0); y < c.height; y++ {
 		for x := uint(0); x < c.width; x++ {
 			color, alpha := shader(int(x), int(y))
@@ -152,6 +163,9 @@ func (c *Canvas) FillShaderAlpha(shader ShaderAlphaFn) {
 // FillShaderCoords красит холст, используя вещественные координаты от -1.0 до 1.0 по меньшей стороне.
 // Математика полностью вынесена за пределы циклов, внутри — быстрый инкремент.
 func (c *Canvas) FillShaderCoords(shader ShaderCoordsFn) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.width == 0 || c.height == 0 {
 		return
 	}
@@ -185,6 +199,9 @@ func (c *Canvas) FillShaderCoords(shader ShaderCoordsFn) {
 
 // FillShaderCoordsAlpha делает то же самое, но с учетом альфа-смешивания.
 func (c *Canvas) FillShaderCoordsAlpha(shader ShaderCoordsAlphaFn) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.width == 0 || c.height == 0 {
 		return
 	}
@@ -241,56 +258,38 @@ func (c *Canvas) GetCoords(xIdx, yIdx uint) (float64, float64) {
 	}
 }
 
-// Render выводит холст в терминал, используя символ '▀' для удвоения разрешения по вертикали.
-// Ось Y направлена вверх, поэтому отрисовка идет с нижних строк матрицы к верхним.
-// Render выводит холст в терминал с удвоенным разрешением по вертикали.
-// Полностью защищен от мигания и скроллинга экрана.
-func (c *Canvas) Render() {
-	if c.width == 0 || c.height == 0 {
-		return
+// At возвращает цвет пикселя по указанным индексам. 
+// Метод защищен мьютексом для потокобезопасного чтения.
+func (c *Canvas) At(x, y uint) Color {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	
+	// Защита от выхода за границы на случай микро-задержек при ресайзе
+	if x >= c.width || y >= c.height {
+		return ColorBlack
 	}
+	return c.data[y][x]
+}
 
-	// 1. Увеличиваем размер буфера до 256 КБ (этого с запасом хватит на огромный 4K терминал).
-	// Теперь весь кадр копится в памяти и выстреливает в терминал мгновенно при Flush().
-	writer := bufio.NewWriterSize(os.Stdout, 256*1024)
+func (c *Canvas) CopyFrom(src *Canvas) {
+	c.mu.Lock()
+	src.mu.Lock()
+	defer c.mu.Unlock()
+	defer src.mu.Unlock()
 
-	termRow := 1
-	startY := int(c.height) - 1
-
-	for y := startY; y >= 0; y -= 2 {
-		// В начале каждой строки принудительно ставим курсор на нужную позицию терминала.
-		// Формула \x1b[Строка;КолонкаH избавляет нас от использования \n и скроллинга экрана!
-		writer.WriteString("\x1b[" + strconv.Itoa(termRow) + ";1H")
-		termRow++
-
-		for x := uint(0); x < c.width; x++ {
-			topColor := c.data[y][x].ToRGB()
-
-			var bottomColor [3]uint8
-			if y-1 >= 0 {
-				bottomColor = c.data[y-1][x].ToRGB()
-			}
-
-			// Пишем цвета пикселей в буфер памяти
-			writer.WriteString("\x1b[38;2;")
-			writer.WriteString(strconv.Itoa(int(topColor[0])))
-			writer.WriteString(";")
-			writer.WriteString(strconv.Itoa(int(topColor[1])))
-			writer.WriteString(";")
-			writer.WriteString(strconv.Itoa(int(topColor[2])))
-			writer.WriteString(";48;2;")
-			writer.WriteString(strconv.Itoa(int(bottomColor[0])))
-			writer.WriteString(";")
-			writer.WriteString(strconv.Itoa(int(bottomColor[1])))
-			writer.WriteString(";")
-			writer.WriteString(strconv.Itoa(int(bottomColor[2])))
-			writer.WriteString("m▀")
+	// Если размеры не совпадают, пересоздаем матрицу
+	if c.width != src.width || c.height != src.height {
+		c.width = src.width
+		c.height = src.height
+		c.data = make([][]Color, c.height)
+		for y := uint(0); y < c.height; y++ {
+			c.data[y] = make([]Color, c.width)
 		}
 	}
 
-	// Сбрасываем цвета в самом конце кадра
-	writer.WriteString("\x1b[0m")
-	// Выплескиваем весь готовый кадр в терминал за один раз
-	writer.Flush()
+	// Копируем пиксели
+	for y := uint(0); y < c.height; y++ {
+		copy(c.data[y], src.data[y])
+	}
 }
 
