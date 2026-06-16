@@ -1,0 +1,47 @@
+package tuicanvas
+
+// KeyEvent описывает событие нажатия клавиши или их сочетания на клавиатуре.
+type KeyEvent struct {
+	// Key содержит строковое представление клавиши в нижнем регистре.
+	// Обычные: "w", "a", "space", "enter", "escape".
+	// Стрелочки: "up", "down", "left", "right".
+	// Модификаторы: "ctrl+c", "ctrl+z", "shift+up", "shift+down".
+	Key string
+}
+
+// MouseButton представляет собой тип для идентификации кнопок мыши.
+type MouseButton int
+
+const (
+	MouseLeft       MouseButton = 0
+	MouseMiddle     MouseButton = 1
+	MouseRight      MouseButton = 2
+	MouseScrollUp   MouseButton = 64
+	MouseScrollDown MouseButton = 65
+	MouseMove       MouseButton = 99 // простого движения без клика
+)
+
+// MouseEvent описывает действия с мышью (клики, перемещения, скролл).
+type MouseEvent struct {
+	// Целочисленные координаты пикселя на холсте Canvas (X: 0..width, Y: 0..height)
+	// Ось Y пересчитана и смотрит ВВЕРХ.
+	X uint
+	Y uint
+
+	// Вещественные координаты клика/движения в диапазоне от -1.0 до 1.0 по меньшей стороне.
+	// Точка (0.0, 0.0) — строго центр экрана. Ось Y направлена ВВЕРХ.
+	FX float64
+	FY float64
+
+	// Какая кнопка мыши совершила действие
+	Button MouseButton
+
+	// true — кнопка нажата, false — кнопка отпущена (или мышь просто двигалась)
+	IsDown bool
+}
+
+// ResizeEvent описывает изменение размеров окна терминала.
+type ResizeEvent struct {
+	Width  uint
+	Height uint
+}
