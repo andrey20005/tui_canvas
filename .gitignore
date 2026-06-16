@@ -1,0 +1,29 @@
+# Специфичные файлы для проекта
+debug.log
+
+# Логи и временные файлы
+*.log
+*.tmp
+*.swp
+
+# Локальные переменные окружения (секреты)
+.env
+.env.local
+
+# Системные файлы macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Системные файлы Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+desktop.ini
+
+# Папки зависимостей и сборки (раскомментируйте нужное)
+# node_modules/
+# dist/
+# build/
+.idea/
+.vscode/
