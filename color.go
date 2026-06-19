@@ -90,6 +90,14 @@ func NewColorHexString(hexStr string) (Color, error) {
 // ГЕТТЕРЫ
 // ==========================================
 
+func (c Color) R() float64 { return c.channels[0] }
+
+func (c Color) G() float64 { return c.channels[1] }
+
+func (c Color) B() float64 { return c.channels[2] }
+
+func (c Color) Brightness() float64 { return  c.channels[0] * 0.299 + c.channels[1] * 0.587 + c.channels[2] * 0.114 }
+
 // ToRGB возвращает срез []uint8 из 3 элементов (0-255)
 func (c Color) ToRGB() [3]uint8 {
 	return [3]uint8{
@@ -111,10 +119,6 @@ func (c Color) ToHexString() string {
 	return fmt.Sprintf("#%02X%02X%02X", rgb[0], rgb[1], rgb[2])
 }
 
-// ==========================================
-// МАТЕМАТИКА ЦВЕТА
-// ==========================================
-
 // Mix выполняет линейную интерполяцию (LERP) между текущим цветом и цветом y.
 // Параметр t определяет пропорцию смешивания и обычно находится в диапазоне [0.0, 1.0].
 // Формула: x * (1 - t) + y * t
@@ -133,48 +137,48 @@ func (x Color) Mix(y Color, t float64) Color {
 	}}
 }
 
-func (x Color) Add(y Color) Color {
-	return Color{channels: [3]float64{
-		x.channels[0] + y.channels[0],
-		x.channels[1] + y.channels[1],
-		x.channels[2] + y.channels[2],
-	}}
-}
+// func (x Color) Add(y Color) Color {
+// 	return Color{channels: [3]float64{
+// 		x.channels[0] + y.channels[0],
+// 		x.channels[1] + y.channels[1],
+// 		x.channels[2] + y.channels[2],
+// 	}}
+// }
 
-func (x Color) Sub(y Color) Color {
-	return Color{channels: [3]float64{
-		x.channels[0] - y.channels[0],
-		x.channels[1] - y.channels[1],
-		x.channels[2] - y.channels[2],
-	}}
-}
+// func (x Color) Sub(y Color) Color {
+// 	return Color{channels: [3]float64{
+// 		x.channels[0] - y.channels[0],
+// 		x.channels[1] - y.channels[1],
+// 		x.channels[2] - y.channels[2],
+// 	}}
+// }
 
-func (x Color) Mul(y Color) Color {
-	return Color{channels: [3]float64{
-		x.channels[0] * y.channels[0],
-		x.channels[1] * y.channels[1],
-		x.channels[2] * y.channels[2],
-	}}
-}
+// func (x Color) Mul(y Color) Color {
+// 	return Color{channels: [3]float64{
+// 		x.channels[0] * y.channels[0],
+// 		x.channels[1] * y.channels[1],
+// 		x.channels[2] * y.channels[2],
+// 	}}
+// }
 
-func (x Color) Div(y Color) Color {
-	return Color{channels: [3]float64{
-		divChannel(x.channels[0], y.channels[0]),
-		divChannel(x.channels[1], y.channels[1]),
-		divChannel(x.channels[2], y.channels[2]),
-	}}
-}
+// func (x Color) Div(y Color) Color {
+// 	return Color{channels: [3]float64{
+// 		divChannel(x.channels[0], y.channels[0]),
+// 		divChannel(x.channels[1], y.channels[1]),
+// 		divChannel(x.channels[2], y.channels[2]),
+// 	}}
+// }
 
-// ==========================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-// ==========================================
+// // ==========================================
+// // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// // ==========================================
 
-func divChannel(n, d float64) float64 {
-	if d == 0.0 {
-		return 1.0
-	}
-	return n / d
-}
+// func divChannel(n, d float64) float64 {
+// 	if d == 0.0 {
+// 		return 1.0
+// 	}
+// 	return n / d
+// }
 
 func clampRGB(val float64) uint8 {
 	res := math.Round(val * 255.0)

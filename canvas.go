@@ -1,15 +1,11 @@
 package tuicanvas
 
-import (
-	"sync"
-)
 
 // Canvas представляет собой двумерный холст для рисования в терминале.
 type Canvas struct {
 	data   [][]Color
 	width  uint
 	height uint
-	mu     sync.Mutex
 }
 
 // NewCanvas создает новый холст заданного размера, заполненный черным цветом.
@@ -21,7 +17,6 @@ func NewCanvas(width, height uint) *Canvas {
 			data[y][x] = ColorBlack
 		}
 	}
-
 	return &Canvas{
 		data:   data,
 		width:  width,
@@ -32,76 +27,38 @@ func NewCanvas(width, height uint) *Canvas {
 // Resize изменяет размер холста. Старое изображение выравнивается по центру.
 // Если новый размер больше — свободное пространство заполняется черным цветом.
 // Если новый размер меньше — изображение центрированно обрезается.
-func (c *Canvas) Resize(newWidth, newHeight uint) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// Если размеры не изменились, ничего не делаем
-	if c.width == newWidth && c.height == newHeight {
+func (c *Canvas) Resize(newW, newH uint) {
+	if c.width == newW && c.height == newH {
 		return
 	}
 
-	// Создаем новую матрицу и заполняем её черным цветом
-	newData := make([][]Color, newHeight)
-	for y := uint(0); y < newHeight; y++ {
-		newData[y] = make([]Color, newWidth)
-		for x := uint(0); x < newWidth; x++ {
+	// Создаем новую матрицу, заполненную черным цветом
+	newData := make([][]Color, newH)
+	for y := uint(0); y < newH; y++ {
+		newData[y] = make([]Color, newW)
+		for x := uint(0); x < newW; x++ {
 			newData[y][x] = ColorBlack
 		}
 	}
 
-	// Вычисляем начальные точки для копирования (центрирование)
-	// Формула: (ШиринаНовая - ШиринаСтарая) / 2
-	// Использован int, так как значения могут быть отрицательными (при уменьшении холста)
-	offsetX := (int(newWidth) - int(c.width)) / 2
-	offsetY := (int(newHeight) - int(c.height)) / 2
+	// Смещения для центрирования (могут быть отрицательными)
+	dx := (int(newW) - int(c.width)) / 2
+	dy := (int(newH) - int(c.height)) / 2
 
-	// Определяем границы пересечения старого и нового холста
-	// Чтобы не выйти за пределы массивов при обрезке или расширении
-	oldStartY := 0
-	if offsetY < 0 {
-		oldStartY = -offsetY
-	}
-	newStartY := 0
-	if offsetY > 0 {
-		newStartY = offsetY
-	}
+	// Копируем только пересекающиеся области
+	for y := uint(0); y < c.height; y++ {
+		ny := int(y) + dy
+		if ny < 0 || ny >= int(newH) { continue }
 
-	oldStartX := 0
-	if offsetX < 0 {
-		oldStartX = -offsetX
-	}
-	newStartX := 0
-	if offsetX > 0 {
-		newStartX = offsetX
-	}
+		for x := uint(0); x < c.width; x++ {
+			nx := int(x) + dx
+			if nx < 0 || nx >= int(newW) { continue }
 
-	// Копируем пиксели из старой матрицы в новую с учетом смещения
-	for y := 0; ; y++ {
-		oldY := oldStartY + y
-		newY := newStartY + y
-
-		// Прерываемся, если вышли за границы любого из холстов
-		if oldY >= int(c.height) || newY >= int(newHeight) {
-			break
-		}
-
-		for x := 0; ; x++ {
-			oldX := oldStartX + x
-			newX := newStartX + x
-
-			if oldX >= int(c.width) || newX >= int(newWidth) {
-				break
-			}
-
-			newData[newY][newX] = c.data[oldY][oldX]
+			newData[ny][nx] = c.data[y][x]
 		}
 	}
 
-	// Обновляем состояние холста
-	c.data = newData
-	c.width = newWidth
-	c.height = newHeight
+	c.data, c.width, c.height = newData, newW, newH
 }
 
 // Width возвращает текущую ширину холста
@@ -117,17 +74,12 @@ func (c *Canvas) Height() uint { return c.height }
 // Fill закрашивает весь холст одним сплошным цветом.
 // Это самый быстрый способ очистить экран или задать базовый фон.
 func (c *Canvas) Fill(color Color) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	for y := uint(0); y < c.height; y++ {
 		for x := uint(0); x < c.width; x++ {
 			c.data[y][x] = color
 		}
 	}
 }
-
-// шейдеры
 
 // Кастомные типы функций для удобства сигнатур
 type ShaderFn func(x, y int) Color
@@ -137,9 +89,6 @@ type ShaderCoordsAlphaFn func(x, y float64) (Color, float64)
 
 // FillShader индицирует каждый пиксель по его целочисленным индексам (x, y)
 func (c *Canvas) FillShader(shader ShaderFn) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	for y := uint(0); y < c.height; y++ {
 		for x := uint(0); x < c.width; x++ {
 			c.data[y][x] = shader(int(x), int(y))
@@ -149,9 +98,6 @@ func (c *Canvas) FillShader(shader ShaderFn) {
 
 // FillShaderAlpha красит холст с учетом альфа-канала (смешивает новый цвет с текущим фоном)
 func (c *Canvas) FillShaderAlpha(shader ShaderAlphaFn) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	for y := uint(0); y < c.height; y++ {
 		for x := uint(0); x < c.width; x++ {
 			color, alpha := shader(int(x), int(y))
@@ -163,9 +109,6 @@ func (c *Canvas) FillShaderAlpha(shader ShaderAlphaFn) {
 // FillShaderCoords красит холст, используя вещественные координаты от -1.0 до 1.0 по меньшей стороне.
 // Математика полностью вынесена за пределы циклов, внутри — быстрый инкремент.
 func (c *Canvas) FillShaderCoords(shader ShaderCoordsFn) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.width == 0 || c.height == 0 {
 		return
 	}
@@ -199,9 +142,6 @@ func (c *Canvas) FillShaderCoords(shader ShaderCoordsFn) {
 
 // FillShaderCoordsAlpha делает то же самое, но с учетом альфа-смешивания.
 func (c *Canvas) FillShaderCoordsAlpha(shader ShaderCoordsAlphaFn) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.width == 0 || c.height == 0 {
 		return
 	}
@@ -237,10 +177,8 @@ func (c *Canvas) GetCoords(xIdx, yIdx uint) (float64, float64) {
 	if c.width == 0 || c.height == 0 {
 		return 0.0, 0.0
 	}
-
 	w := float64(c.width)
 	h := float64(c.height)
-
 	if w > h {
 		s := 2. / h
 		// Правильное центрирование длинной стороны:
@@ -261,35 +199,9 @@ func (c *Canvas) GetCoords(xIdx, yIdx uint) (float64, float64) {
 // At возвращает цвет пикселя по указанным индексам. 
 // Метод защищен мьютексом для потокобезопасного чтения.
 func (c *Canvas) At(x, y uint) Color {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	
 	// Защита от выхода за границы на случай микро-задержек при ресайзе
 	if x >= c.width || y >= c.height {
 		return ColorBlack
 	}
 	return c.data[y][x]
 }
-
-func (c *Canvas) CopyFrom(src *Canvas) {
-	c.mu.Lock()
-	src.mu.Lock()
-	defer c.mu.Unlock()
-	defer src.mu.Unlock()
-
-	// Если размеры не совпадают, пересоздаем матрицу
-	if c.width != src.width || c.height != src.height {
-		c.width = src.width
-		c.height = src.height
-		c.data = make([][]Color, c.height)
-		for y := uint(0); y < c.height; y++ {
-			c.data[y] = make([]Color, c.width)
-		}
-	}
-
-	// Копируем пиксели
-	for y := uint(0); y < c.height; y++ {
-		copy(c.data[y], src.data[y])
-	}
-}
-

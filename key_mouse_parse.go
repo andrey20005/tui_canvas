@@ -166,7 +166,7 @@ func (s *Screen) parseMouseEvent(mouseStr string) {
 	// Терминал присылает Y сверху вниз (строки).
 	// Нам нужно пересчитать Y под пиксели нашего холста Canvas.
 	// Одна строка терминала по высоте равна двум пикселям холста.
-	termHeight := s.currentCanvas.Height() / 2
+	termHeight := s.canvas.Height() / 2
 	if yRow >= termHeight {
 		s.log(fmt.Sprintf("Событие мыши отклонено: Y-строка (%d) вне диапазона холста (%d)", yRow, termHeight))
 		return
@@ -185,7 +185,7 @@ func (s *Screen) parseMouseEvent(mouseStr string) {
 	}
 
 	// Запрашиваем у Canvas вещественные координаты для этой точки холста
-	fx, fy := s.currentCanvas.GetCoords(xIdx, yIdx)
+	fx, fy := s.canvas.GetCoords(xIdx, yIdx)
 
 	// Формируем событие мыши
 	ev := MouseEvent{

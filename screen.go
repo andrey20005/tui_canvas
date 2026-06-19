@@ -6,20 +6,27 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"golang.org/x/term"
 )
 
 // Screen управляет состоянием терминала, обрабатывает ввод и ресайз,
-// а также предоставляет холст для рисования.
+// а также координирует графический и текстовый слои.
 type Screen struct {
-	// Графические буферы
-	currentCanvas *Canvas // Холст, на котором рисует пользователь прямо сейчас
-	frozenCanvas *Canvas
-	backCanvas    *Canvas // Копия предыдущего кадра для оптимизации вывода (Double Buffering)
+	// Активные слои, с которыми работает пользователь
+	canvas    *Canvas
+	textLayer *TextLayer
 
-	// Внутренние двунаправленные каналы для событий
+	// Промежуточные плоские кадры для Double Buffering
+	frozenFrame *RawFrame
+	backFrame   *RawFrame
+
+	// Центральный замок потокобезопасности для Canvas и TextLayer
+	mu sync.Mutex
+
+	// Внутренние каналы для событий
 	keyChan    chan KeyEvent
 	mouseChan  chan MouseEvent
 	resizeChan chan ResizeEvent
@@ -30,24 +37,28 @@ type Screen struct {
 	// Хранилище старого состояния терминала для восстановления при Close()
 	oldState *term.State
 
+	// Опциональный логгер для отладки
 	logger *log.Logger
 }
 
-// NewScreen инициализирует экран.
-// Если logPath не пустой (например, "debug.log"), включает детальное логирование в этот файл.
+// NewScreen инициализирует и перехватывает терминал, создавая менеджер экрана.
 func NewScreen(logPath string) (*Screen, error) {
 	fdOut := int(os.Stdout.Fd())
 	fdIn := int(os.Stdin.Fd())
 	if !term.IsTerminal(fdOut) || !term.IsTerminal(fdIn) {
 		return nil, fmt.Errorf("standard input/output is not a terminal")
 	}
+
 	w, h, err := term.GetSize(fdOut)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get terminal size: %w", err)
 	}
 
+	// Размеры в пикселях и строках терминала
 	canvasW := uint(w)
 	canvasH := uint(h * 2)
+	termW := uint(w)
+	termH := uint(h)
 
 	oldState, err := term.MakeRaw(fdIn)
 	if err != nil {
@@ -55,27 +66,26 @@ func NewScreen(logPath string) (*Screen, error) {
 	}
 
 	s := &Screen{
-		currentCanvas: NewCanvas(canvasW, canvasH),
-		backCanvas:    NewCanvas(canvasW, canvasH),
-		frozenCanvas:  NewCanvas(canvasW, canvasH),
-		keyChan:       make(chan KeyEvent, 128),
-		mouseChan:     make(chan MouseEvent, 256), // Исправлена опечатка (было "2 56")
-		resizeChan:    make(chan ResizeEvent),
-		done:          make(chan struct{}),
-		oldState:      oldState,
+		canvas:      NewCanvas(canvasW, canvasH),
+		textLayer:   NewTextLayer(termW, termH),
+		frozenFrame: NewRawFrame(termW, termH),
+		backFrame:   NewRawFrame(termW, termH),
+		keyChan:     make(chan KeyEvent, 128),
+		mouseChan:   make(chan MouseEvent, 256),
+		resizeChan:  make(chan ResizeEvent),
+		done:        make(chan struct{}),
+		oldState:    oldState,
 	}
 
 	// Настраиваем опциональный логгер
 	if logPath != "" {
 		file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
-			// Логгер еще не создан, поэтому пишем критическую ошибку напрямую в stderr
 			fmt.Fprintf(os.Stderr, "[SCREEN] Не удалось открыть файл логов %s: %v\n", logPath, err)
 		} else {
-			// Создаем изолированный логгер, который пишет только в этот файл
 			s.logger = log.New(file, "[SCREEN] ", log.Ltime|log.Lshortfile)
 			s.log("--- Логирование экрана запущено ---")
-			s.log(fmt.Sprintf("Стартовый размер терминала: %dx%d (Canvas: %dx%d)", w, h, canvasW, canvasH))
+			s.log(fmt.Sprintf("Стартовый размер терминала: %dx%d (Canvas: %dx%d, Text: %dx%d)", w, h, canvasW, canvasH, termW, termH))
 		}
 	}
 
@@ -129,7 +139,11 @@ func (s *Screen) Close() {
 
 // Canvas возвращает указатель на текущий холст для рисования.
 func (s *Screen) Canvas() *Canvas {
-	return s.currentCanvas
+	return s.canvas
+}
+
+func (s *Screen) TextLayer() *TextLayer {
+	return s.textLayer
 }
 
 // KeyEvents возвращает канал событий клавиатуры только для чтения.
@@ -147,57 +161,51 @@ func (s *Screen) ResizeEvents() <-chan ResizeEvent {
 	return s.resizeChan
 }
 
-// watchResize отслеживает сигналы изменения размера терминала от ОС.
-// Запускается как фоновая горутина.
-func (s *Screen) watchResize() {
-	// 1. Создаем буферизированный канал для приема сигналов от ОС
-	sigChan := make(chan os.Signal, 1)
-	// 2. Регистрируем канал на получение сигнала изменения размера окна (SIGWINCH)
-	signal.Notify(sigChan, syscall.SIGWINCH)
+// Защищает состояние холста и текстового слоя.
+func (s *Screen) Lock() {
+	s.mu.Lock()
+}
 
-	// При завершении горутины снимаем регистрацию сигнала
+// Unlock открывает доступ к холсту и текстовому слою.
+func (s *Screen) Unlock() {
+	s.mu.Unlock()
+}
+
+// watchResize отслеживает изменение размеров окна терминала от ОС.
+func (s *Screen) watchResize() {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGWINCH)
 	defer signal.Stop(sigChan)
 
 	for {
 		select {
 		case <-s.done:
-			// Метод Close() закрыл канал done — мягко завершаем горутину
 			s.log("Горутина watchResize завершена")
 			return
 
 		case <-sigChan:
-			// ОС сообщила, что размер окна изменился!
-			s.log("Получен сигнал SIGWINCH (изменение размера окна)")
 			fdOut := int(os.Stdout.Fd())
-
 			w, h, err := term.GetSize(fdOut)
 			if err != nil {
-				s.log(fmt.Sprintf("Не удалось прочитать новый размер терминала: %v", err))
-				continue // Если не удалось прочитать размер, игнорируем этот тик
+				s.log(fmt.Sprintf("Ошибка получения размера: %v", err))
+				continue
 			}
 
-			canvasW := uint(w)
-			canvasH := uint(h * 2)
+			canvasW, canvasH := uint(w), uint(h*2)
+			termW, termH := uint(w), uint(h)
 
-			// 3. Автоматически изменяем размеры наших внутренних буферов холста.
-			s.currentCanvas.Resize(canvasW, canvasH)
-			s.backCanvas.Resize(canvasW, canvasH)
-			s.log(fmt.Sprintf("Размер холста изменен на: %dx%d", canvasW, canvasH))
+			s.mu.Lock()
+			s.canvas.Resize(canvasW, canvasH)
+			s.textLayer.Resize(termW, termH)
+			s.mu.Unlock()
 
-			// 4. Формируем событие для пользователя
-			ev := ResizeEvent{
-				Width:  canvasW,
-				Height: canvasH,
-			}
+			s.log(fmt.Sprintf("Ресайз в памяти: Canvas %dx%d, TextLayer %dx%d", canvasW, canvasH, termW, termH))
 
-			// 5. Неблокирующая отправка в канал:
 			select {
-			case s.resizeChan <- ev:
-				// Успешно передали событие в приложение
+			case s.resizeChan <- ResizeEvent{Width: canvasW, Height: canvasH}:
 			default:
-				s.log("Событие изменения размера пропущено: канал resizeChan переполнен")
+				s.log("Событие ресайза пропущено (канал занят)")
 			}
 		}
 	}
 }
-
