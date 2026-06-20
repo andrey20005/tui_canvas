@@ -272,7 +272,7 @@ func main() {
 	defer screen.Close()
 
 	// 3D Рэймэйчинг тяжелый, поэтому ставим лимит тикера поспокойнее (например, ~30 кадров)
-	ticker := time.NewTicker(time.Second / 30)
+	ticker := time.NewTicker(time.Second / 60)
 	defer ticker.Stop()
 
 	startTime := time.Now()
