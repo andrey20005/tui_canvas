@@ -1,6 +1,5 @@
 package tuicanvas
 
-
 // Canvas представляет собой двумерный холст для рисования в терминале.
 type Canvas struct {
 	data   [][]Color
@@ -24,10 +23,10 @@ func NewCanvas(width, height uint) *Canvas {
 	}
 }
 
-// Resize изменяет размер холста. Старое изображение выравнивается по центру.
+// resize изменяет размер холста. Старое изображение выравнивается по центру.
 // Если новый размер больше — свободное пространство заполняется черным цветом.
 // Если новый размер меньше — изображение центрированно обрезается.
-func (c *Canvas) Resize(newW, newH uint) {
+func (c *Canvas) resize(newW, newH uint) {
 	if c.width == newW && c.height == newH {
 		return
 	}
@@ -48,11 +47,15 @@ func (c *Canvas) Resize(newW, newH uint) {
 	// Копируем только пересекающиеся области
 	for y := uint(0); y < c.height; y++ {
 		ny := int(y) + dy
-		if ny < 0 || ny >= int(newH) { continue }
+		if ny < 0 || ny >= int(newH) {
+			continue
+		}
 
 		for x := uint(0); x < c.width; x++ {
 			nx := int(x) + dx
-			if nx < 0 || nx >= int(newW) { continue }
+			if nx < 0 || nx >= int(newW) {
+				continue
+			}
 
 			newData[ny][nx] = c.data[y][x]
 		}
@@ -196,10 +199,8 @@ func (c *Canvas) GetCoords(xIdx, yIdx uint) (float64, float64) {
 	}
 }
 
-// At возвращает цвет пикселя по указанным индексам. 
-// Метод защищен мьютексом для потокобезопасного чтения.
+// At возвращает цвет пикселя по указанным индексам.
 func (c *Canvas) At(x, y uint) Color {
-	// Защита от выхода за границы на случай микро-задержек при ресайзе
 	if x >= c.width || y >= c.height {
 		return ColorBlack
 	}

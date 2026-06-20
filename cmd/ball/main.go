@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"time"
+
 	"github.com/andrey20005/tui_canvas"
 )
 
@@ -28,26 +29,23 @@ func main() {
 		select {
 		case <-ticker.C:
 			// НАСТУПИЛ НОВЫЙ КАДР: РЕНДЕРИНГ
-			canvas := screen.Canvas()
+			screen.Draw(func(canvas *tuicanvas.Canvas, textLayer *tuicanvas.TextLayer) {
+				// Заливаем фон красивым процедурным шейдером (синий градиент)
+				canvas.FillShaderCoords(func(x, y float64) tuicanvas.Color {
+					return tuicanvas.NewColorFloat(0.0, 0.0, (y+1.0)*0.3)
+				})
 
-			// Заливаем фон красивым процедурным шейдером (синий градиент)
-			canvas.FillShaderCoords(func(x, y float64) tuicanvas.Color {
-				return tuicanvas.NewColorFloat(0.0, 0.0, (y+1.0)*0.3)
+				// Поверх шейдера рисуем кружок нашего "игрока" с помощью FillCoordsAlpha
+				canvas.FillShaderCoordsAlpha(func(x, y float64) (tuicanvas.Color, float64) {
+					// Считаем расстояние от текущих координат игрока
+					dx := x - playerX
+					dy := y - playerY
+					if dx*dx+dy*dy < 0.02 { // Маленький радиус
+						return tuicanvas.ColorYellow, 1.0
+					}
+					return tuicanvas.ColorBlack, 0.0
+				})
 			})
-
-			// Поверх шейдера рисуем кружок нашего "игрока" с помощью FillCoordsAlpha
-			canvas.FillShaderCoordsAlpha(func(x, y float64) (tuicanvas.Color, float64) {
-				// Считаем расстояние от текущих координат игрока
-				dx := x - playerX
-				dy := y - playerY
-				if dx*dx+dy*dy < 0.02 { // Маленький радиус
-					return tuicanvas.ColorYellow, 1.0
-				}
-				return tuicanvas.ColorBlack, 0.0
-			})
-
-			// Выводим холст на экран
-			screen.Update()
 
 		case keyEv := <-screen.KeyEvents():
 			// ОБРАБОТКА КЛАВИАТУРЫ
@@ -69,13 +67,13 @@ func main() {
 			// ОБРАБОТКА МЫШИ
 			// Если зажата левая кнопка мыши (MouseLeft), телепортируем желтый кружок туда
 			if mouseEv.Button == tuicanvas.MouseLeft && mouseEv.IsDown {
-				playerX = mouseEv.FX
-				playerY = mouseEv.FY
+				playerX = float64(mouseEv.X) // Приводим к float64 для вычислений
+				playerY = float64(mouseEv.Y)
 			}
 
 		case <-screen.ResizeEvents():
 			// ОБРАБОТКА РЕСАЙЗА
-			// Сам экран Screen уже перестроил Canvas внутри watchResize,
+			// Сам экран Screen уже перестроил Canvas внутри handleResize,
 			// нам здесь ничего делать не нужно, в следующем тике кадра 
 			// графика автоматически отрисуется под новый размер.
 		}

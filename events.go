@@ -18,20 +18,15 @@ const (
 	MouseRight      MouseButton = 2
 	MouseScrollUp   MouseButton = 64
 	MouseScrollDown MouseButton = 65
-	MouseMove       MouseButton = 99 // простого движения без клика
+	MouseMove       MouseButton = 99 // простое движение без клика
 )
 
 // MouseEvent описывает действия с мышью (клики, перемещения, скролл).
 type MouseEvent struct {
 	// Целочисленные координаты пикселя на холсте Canvas (X: 0..width, Y: 0..height)
-	// Ось Y пересчитана и смотрит ВВЕРХ.
+	// Ось Y смотрит ВВЕРХ.
 	X uint
 	Y uint
-
-	// Вещественные координаты клика/движения в диапазоне от -1.0 до 1.0 по меньшей стороне.
-	// Точка (0.0, 0.0) — строго центр экрана. Ось Y направлена ВВЕРХ.
-	FX float64
-	FY float64
 
 	// Какая кнопка мыши совершила действие
 	Button MouseButton

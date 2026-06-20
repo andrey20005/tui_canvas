@@ -63,12 +63,7 @@ func main() {
 
 	for {
 		select {
-				case <-ticker.C:
-			screen.Lock()
-
-			canvas := screen.Canvas()
-			text := screen.TextLayer() 
-			
+		case <-ticker.C:
 			now := time.Now()
 			frameTime := now.Sub(lastTime)
 			lastTime = now
@@ -76,19 +71,17 @@ func main() {
 			if frameTime.Seconds() > 0 {
 				fps = 1.0 / frameTime.Seconds()
 			}
-			text.Clear()
-			topRow := int(text.Height()) - 2
-			text.PrintAt(1, topRow, fmt.Sprintf("FPS: %.1f", fps), uiShader)
-
 			iTime := time.Since(startTime).Seconds()
 
-			canvas.FillShaderCoords(func(x, y float64) tuicanvas.Color {
-				return MainImageShader(x, y, iTime)
+			screen.Draw(func(canvas *tuicanvas.Canvas, text *tuicanvas.TextLayer) {
+				text.Clear()
+				topRow := int(text.Height()) - 2
+				text.PrintAt(1, topRow, fmt.Sprintf("FPS: %.1f", fps), uiShader)
+
+				canvas.FillShaderCoords(func(x, y float64) tuicanvas.Color {
+					return MainImageShader(x, y, iTime)
+				})
 			})
-
-			screen.Update()
-			screen.Unlock()
-
 
 		case keyEv := <-screen.KeyEvents():
 			if keyEv.Key == "escape" || keyEv.Key == "q" || keyEv.Key == "ctrl+c" {

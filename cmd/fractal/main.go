@@ -282,27 +282,21 @@ func main() {
 	for {
 		select {
 		case <-ticker.C:
-			screen.Lock()
-
-			canvas := screen.Canvas()
-			text := screen.TextLayer()
-
 			now := time.Now()
 			fps := 1.0 / now.Sub(lastTime).Seconds()
 			lastTime = now
 
 			iTime := time.Since(startTime).Seconds()
 
-			// Отрендерить 3D Мандельбульб фрактал!
-			canvas.FillShaderCoords(func(x, y float64) tuicanvas.Color {
-				return RenderMandelbulb(x, y, iTime)
+			screen.Draw(func(canvas *tuicanvas.Canvas, text *tuicanvas.TextLayer) {
+				// Отрендерить 3D Мандельбульб фрактал!
+				canvas.FillShaderCoords(func(x, y float64) tuicanvas.Color {
+					return RenderMandelbulb(x, y, iTime)
+				})
+
+				text.Clear()
+				text.PrintAt(1, int(text.Height())-2, fmt.Sprintf("MANDELBULB 3D | FPS: %.1f", fps), textShader)
 			})
-
-			text.Clear()
-			text.PrintAt(1, int(text.Height())-2, fmt.Sprintf("MANDELBULB 3D | FPS: %.1f", fps), textShader)
-
-			screen.Update()
-			screen.Unlock()
 
 		case keyEv := <-screen.KeyEvents():
 			if keyEv.Key == "escape" || keyEv.Key == "q" || keyEv.Key == "ctrl+c" {
