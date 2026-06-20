@@ -53,7 +53,7 @@ func main() {
 	}
 	defer screen.Close()
 
-	ticker := time.NewTicker(time.Second / 1000)
+	ticker := time.NewTicker(time.Second / 60)
 	defer ticker.Stop()
 
 	startTime := time.Now()
