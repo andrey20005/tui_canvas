@@ -5,24 +5,24 @@ import "fmt"
 // TerminalCell хранит состояние одного знакоместа терминала.
 type TerminalCell struct {
 	Rune rune  // Символ ('▀' или буква из TextLayer)
-	Fg   Color // Финальный цвет текста
-	Bg   Color // Финальный цвет фона
+	Fg   Color // цвет символа
+	Bg   Color // цвет фона
 }
 
 // RawFrame — промежуточный плоский слепок экрана.
 type RawFrame struct {
 	cells  [][]TerminalCell // строчка с индексом 0 нижняя 
-	width  uint
-	height uint
+	columns  uint
+	rows uint
 }
 
 // NewRawFrame создает пустой слепок заданного размера.
-func NewRawFrame(w, h uint) *RawFrame {
-	data := make([][]TerminalCell, h)
-	for y := uint(0); y < h; y++ {
-		data[y] = make([]TerminalCell, w)
+func NewRawFrame(c, r uint) *RawFrame {
+	data := make([][]TerminalCell, r)
+	for y := uint(0); y < r; y++ {
+		data[y] = make([]TerminalCell, c)
 	}
-	return &RawFrame{cells: data, width: w, height: h}
+	return &RawFrame{cells: data, columns: c, rows: r}
 }
 
 // BuildFrom склеивает графику Canvas и текст TextLayer в единый плоский кадр.
@@ -37,25 +37,25 @@ func (rf *RawFrame) BuildFrom(canvas *Canvas, textLayer *TextLayer) {
 		))
 	}
 
-	w := canvas.Width()
-	h := textLayer.Height() // Высота в строках терминала
+	c := canvas.Width()
+	r := textLayer.Height() // Высота в строках терминала
 
 	//  Если размеры терминала изменились, перестраиваем свою матрицу на лету
-	if rf.width != w || rf.height != h {
-		rf.cells = make([][]TerminalCell, h)
-		for y := uint(0); y < h; y++ {
-			rf.cells[y] = make([]TerminalCell, w)
+	if rf.columns != c || rf.rows != r {
+		rf.cells = make([][]TerminalCell, r)
+		for y := uint(0); y < r; y++ {
+			rf.cells[y] = make([]TerminalCell, c)
 		}
-		rf.width = w
-		rf.height = h
+		rf.columns = c
+		rf.rows = r
 	}
 
 	// Сборка кадра
-	for y := uint(0); y < h; y++ {
+	for y := uint(0); y < r; y++ {
 		yBottom := y * 2
 		yTop := yBottom + 1
 
-		for x := uint(0); x < w; x++ {
+		for x := uint(0); x < c; x++ {
 			cellText := textLayer.data[y][x]
 
 			if cellText.Is && cellText.Shader != nil {
@@ -82,23 +82,23 @@ func (rf *RawFrame) CopyFrom(src *RawFrame) {
 	}
 
 	// Синхронизируем размеры, если они отличаются
-	if rf.width != src.width || rf.height != src.height {
-		rf.width = src.width
-		rf.height = src.height
-		rf.cells = make([][]TerminalCell, rf.height)
-		for y := uint(0); y < rf.height; y++ {
-			rf.cells[y] = make([]TerminalCell, rf.width)
+	if rf.columns != src.columns || rf.rows != src.rows {
+		rf.columns = src.columns
+		rf.rows = src.rows
+		rf.cells = make([][]TerminalCell, rf.rows)
+		for y := uint(0); y < rf.rows; y++ {
+			rf.cells[y] = make([]TerminalCell, rf.columns)
 		}
 	}
 
 	// Быстро копируем строки через встроенный copy
-	for y := uint(0); y < rf.height; y++ {
+	for y := uint(0); y < rf.rows; y++ {
 		copy(rf.cells[y], src.cells[y])
 	}
 }
 
 // Width возвращает ширину кадра
-func (rf *RawFrame) Width() uint { return rf.width }
+func (rf *RawFrame) Width() uint { return rf.columns }
 
 // Height возвращает высоту кадра
-func (rf *RawFrame) Height() uint { return rf.height }
+func (rf *RawFrame) Height() uint { return rf.rows }

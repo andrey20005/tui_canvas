@@ -1,5 +1,10 @@
 package tuicanvas
 
+import (
+	"runtime"
+	"sync"
+	"sync/atomic"
+)
 
 // Canvas представляет собой двумерный холст для рисования в терминале.
 type Canvas struct {
@@ -24,10 +29,10 @@ func NewCanvas(width, height uint) *Canvas {
 	}
 }
 
-// Resize изменяет размер холста. Старое изображение выравнивается по центру.
+// resize изменяет размер холста. Старое изображение выравнивается по центру.
 // Если новый размер больше — свободное пространство заполняется черным цветом.
 // Если новый размер меньше — изображение центрированно обрезается.
-func (c *Canvas) Resize(newW, newH uint) {
+func (c *Canvas) resize(newW, newH uint) {
 	if c.width == newW && c.height == newH {
 		return
 	}
@@ -48,11 +53,15 @@ func (c *Canvas) Resize(newW, newH uint) {
 	// Копируем только пересекающиеся области
 	for y := uint(0); y < c.height; y++ {
 		ny := int(y) + dy
-		if ny < 0 || ny >= int(newH) { continue }
+		if ny < 0 || ny >= int(newH) {
+			continue
+		}
 
 		for x := uint(0); x < c.width; x++ {
 			nx := int(x) + dx
-			if nx < 0 || nx >= int(newW) { continue }
+			if nx < 0 || nx >= int(newW) {
+				continue
+			}
 
 			newData[ny][nx] = c.data[y][x]
 		}
@@ -89,21 +98,23 @@ type ShaderCoordsAlphaFn func(x, y float64) (Color, float64)
 
 // FillShader индицирует каждый пиксель по его целочисленным индексам (x, y)
 func (c *Canvas) FillShader(shader ShaderFn) {
-	for y := uint(0); y < c.height; y++ {
+	c.parallelY(func(y uint) {
+		yInt := int(y)
 		for x := uint(0); x < c.width; x++ {
-			c.data[y][x] = shader(int(x), int(y))
+			c.data[y][x] = shader(int(x), yInt)
 		}
-	}
+	})
 }
 
 // FillShaderAlpha красит холст с учетом альфа-канала (смешивает новый цвет с текущим фоном)
 func (c *Canvas) FillShaderAlpha(shader ShaderAlphaFn) {
-	for y := uint(0); y < c.height; y++ {
+	c.parallelY(func(y uint) {
+		yInt := int(y)
 		for x := uint(0); x < c.width; x++ {
-			color, alpha := shader(int(x), int(y))
+			color, alpha := shader(int(x), yInt)
 			c.data[y][x] = c.data[y][x].Mix(color, alpha)
 		}
-	}
+	})
 }
 
 // FillShaderCoords красит холст, используя вещественные координаты от -1.0 до 1.0 по меньшей стороне.
@@ -116,28 +127,28 @@ func (c *Canvas) FillShaderCoords(shader ShaderCoordsFn) {
 	w := float64(c.width)
 	h := float64(c.height)
 
-	// 1. Вычисляем шаг (s) ровно один раз
-	var s float64
+	// Коэффициент масштабирования (k)
+	var k float64
 	if w > h {
-		s = 2.0 / h
+		k = 2.0 / h
 	} else {
-		s = 2.0 / w
+		k = 2.0 / w
 	}
 
-	// 2. Находим стартовую точку (левый верхний угол холста при xIdx=0, yIdx=0)
-	startX := -((w - 1.0) / 2.0) * s
-	startY := -((h - 1.0) / 2.0) * s
+	// Коэффициенты смещения (b) для левого верхнего угла
+	bx := -((w - 1.0) / 2.0) * k
+	by := -((h - 1.0) / 2.0) * k
 
-	// 3. Быстрые циклы: вместо вызова функций мы просто прибавляем шаг s
-	fy := startY
-	for y := uint(0); y < c.height; y++ {
-		fx := startX
+	c.parallelY(func(y uint) {
+		// Вычисляем fy напрямую для конкретной строки через замыкание
+		fy := float64(y)*k + by
+		
 		for x := uint(0); x < c.width; x++ {
+			// Вычисляем fx напрямую для конкретного пикселя
+			fx := float64(x)*k + bx
 			c.data[y][x] = shader(fx, fy)
-			fx += s // Сдвигаемся вправо на один пиксель
 		}
-		fy += s // Сдвигаемся вниз на одну строку
-	}
+	})
 }
 
 // FillShaderCoordsAlpha делает то же самое, но с учетом альфа-смешивания.
@@ -149,26 +160,29 @@ func (c *Canvas) FillShaderCoordsAlpha(shader ShaderCoordsAlphaFn) {
 	w := float64(c.width)
 	h := float64(c.height)
 
-	var s float64
+	// Коэффициент масштабирования (k)
+	var k float64
 	if w > h {
-		s = 2.0 / h
+		k = 2.0 / h
 	} else {
-		s = 2.0 / w
+		k = 2.0 / w
 	}
 
-	startX := -((w - 1.0) / 2.0) * s
-	startY := -((h - 1.0) / 2.0) * s
+	// Коэффициенты смещения (b) для левого верхнего угла
+	bx := -((w - 1.0) / 2.0) * k
+	by := -((h - 1.0) / 2.0) * k
 
-	fy := startY
-	for y := uint(0); y < c.height; y++ {
-		fx := startX
+	c.parallelY(func(y uint) {
+		// Вычисляем fy напрямую для строки через замыкание коэффициентов
+		fy := float64(y)*k + by
+		
 		for x := uint(0); x < c.width; x++ {
+			// Вычисляем fx напрямую для пикселя
+			fx := float64(x)*k + bx
 			color, alpha := shader(fx, fy)
 			c.data[y][x] = c.data[y][x].Mix(color, alpha)
-			fx += s
 		}
-		fy += s
-	}
+	})
 }
 
 // GetCoords переводит целочисленные индексы пикселя в вещественные координаты.
@@ -196,12 +210,70 @@ func (c *Canvas) GetCoords(xIdx, yIdx uint) (float64, float64) {
 	}
 }
 
-// At возвращает цвет пикселя по указанным индексам. 
-// Метод защищен мьютексом для потокобезопасного чтения.
-func (c *Canvas) At(x, y uint) Color {
-	// Защита от выхода за границы на случай микро-задержек при ресайзе
-	if x >= c.width || y >= c.height {
+// parallelY — высокопроизводительный оркестратор для обработки строк холста.
+// Использует динамический пул воркеров и атомарное распределение строк для
+// идеального балансирования нагрузки между ядрами процессора.
+func (c *Canvas) parallelY(worker func(yIdx uint)) {
+	if c.height == 0 {
+		return
+	}
+
+	// 1. Быстрый путь для маленьких холстов или одноядерных систем.
+	// Запуск горутин на холсте меньше 32 строк принесет больше вреда, чем пользы.
+	numWorkers := runtime.NumCPU()
+	if numWorkers <= 1 || c.height < 20 {
+		for y := uint(0); y < c.height; y++ {
+			worker(y)
+		}
+		return
+	}
+
+	// Ограничиваем число воркеров высотой холста, если ядер больше, чем строк
+	if numWorkers > int(c.height) {
+		numWorkers = int(c.height)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(numWorkers)
+
+	// Атомарный счетчик текущей строки, которую нужно обработать
+	var currentY uint64 = 0
+	targetY := uint64(c.height)
+
+	// 2. Запускаем пул воркеров
+	for w := 0; w < numWorkers; w++ {
+		go func() {
+			defer wg.Done()
+
+			for {
+				// Берем следующую доступную строку и сдвигаем счетчик на 1 вперед
+				y := atomic.AddUint64(&currentY, 1) - 1
+				
+				// Если все строки разобраны — воркер завершает работу
+				if y >= targetY {
+					return
+				}
+
+				// Передаем индекс строки в колбэк шейдера
+				worker(uint(y))
+			}
+		}()
+	}
+
+	// Ждем, пока все воркеры разберут и обработают строки
+	wg.Wait()
+}
+
+// At возвращает цвет пикселя по указанным индексам.
+func (c *Canvas) At(x, y int) Color {
+	if x >= int(c.width) || y >= int(c.height) || x < 0 || y < 0 {
 		return ColorBlack
 	}
 	return c.data[y][x]
+}
+
+func (c *Canvas) Set(x, y int, color Color) {
+	if x >= 0 && y >= 0 && uint(x) < c.width && uint(y) < c.height {
+		c.data[y][x] = color
+	}
 }

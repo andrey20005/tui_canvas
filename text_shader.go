@@ -4,9 +4,7 @@ type TextShader interface {
 	Process(r rune, topPixelColor, bottomPixelColor Color) (finalRune rune, fg Color, bg Color)
 }
 
-type TransparentTextShader struct {
-	TextColor Color
-}
+type TransparentTextShader struct { TextColor Color }
 
 func (s TransparentTextShader) Process(r rune, top, bottom Color) (rune, Color, Color) {
 	// Фоном буквы становится среднее арифметическое пикселей под ней (эффект стекла)
