@@ -90,7 +90,7 @@ func NewScreen(logPath string) (*Screen, error) {
 
 	s.renderWG.Add(1)
 	go renderLoop(s.renderChan, &s.framePool, s.done, s.log, &s.renderWG)
-	go s.watchResize()
+	go watchResize(s.done, s.internalResizeChan)
 	go readInput(s.keyChan, s.mouseChan, s.done, s.log, func() uint { return s.canvas.Height() })
 
 	return s, nil
@@ -172,24 +172,3 @@ func (s *Screen) TextLayer() *TextLayer            { return s.textLayer }
 func (s *Screen) KeyEvents() <-chan KeyEvent       { return s.keyChan }
 func (s *Screen) MouseEvents() <-chan MouseEvent   { return s.mouseChan }
 func (s *Screen) ResizeEvents() <-chan ResizeEvent { return s.resizeChan }
-
-func (s *Screen) watchResize() {
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGWINCH)
-	defer signal.Stop(sigChan)
-
-	for {
-		select {
-		case <-s.done:
-			return
-		case <-sigChan:
-			w, h, err := term.GetSize(int(os.Stdout.Fd()))
-			if err == nil {
-				select {
-				case s.internalResizeChan <- ResizeEvent{Width: uint(w), Height: uint(h)}:
-				default:
-				}
-			}
-		}
-	}
-}
