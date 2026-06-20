@@ -265,9 +265,15 @@ func (c *Canvas) parallelY(worker func(yIdx uint)) {
 }
 
 // At возвращает цвет пикселя по указанным индексам.
-func (c *Canvas) At(x, y uint) Color {
-	if x >= c.width || y >= c.height {
+func (c *Canvas) At(x, y int) Color {
+	if x >= int(c.width) || y >= int(c.height) || x < 0 || y < 0 {
 		return ColorBlack
 	}
 	return c.data[y][x]
+}
+
+func (c *Canvas) Set(x, y int, color Color) {
+	if x >= 0 && y >= 0 && uint(x) < c.width && uint(y) < c.height {
+		c.data[y][x] = color
+	}
 }

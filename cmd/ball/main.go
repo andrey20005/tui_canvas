@@ -67,9 +67,12 @@ func main() {
 			// ОБРАБОТКА МЫШИ
 			// Если зажата левая кнопка мыши (MouseLeft), телепортируем желтый кружок туда
 			if mouseEv.Button == tuicanvas.MouseLeft && mouseEv.IsDown {
-				playerX = float64(mouseEv.X) // Приводим к float64 для вычислений
-				playerY = float64(mouseEv.Y)
+				// Конвертируем индексы пикселей в координаты шейдера (-1.0..1.0)
+				fx, fy := screen.Canvas().GetCoords(mouseEv.X, mouseEv.Y)
+				playerX = fx
+				playerY = fy
 			}
+
 
 		case <-screen.ResizeEvents():
 			// ОБРАБОТКА РЕСАЙЗА
