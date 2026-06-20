@@ -12,13 +12,13 @@ import (
 // ==========================================
 
 var (
-	ColorBg        = tuicanvas.NewColorRGB(5, 15, 5)
-	ColorChess1    = tuicanvas.NewColorRGB(35, 110, 35)
-	ColorChess2    = tuicanvas.NewColorRGB(40, 130, 40)
-	ColorSnakeHead = tuicanvas.NewColorRGB(255, 140, 0)
-	ColorSnakeTail = tuicanvas.NewColorRGB(128, 0, 128)
-	ColorFruit     = tuicanvas.NewColorRGB(255, 0, 0)
-	ColorTextWhite = tuicanvas.NewColorRGB(255, 255, 255)
+	ColorBg        = tui_canvas.NewColorRGB(5, 15, 5)
+	ColorChess1    = tui_canvas.NewColorRGB(35, 110, 35)
+	ColorChess2    = tui_canvas.NewColorRGB(40, 130, 40)
+	ColorSnakeHead = tui_canvas.NewColorRGB(255, 140, 0)
+	ColorSnakeTail = tui_canvas.NewColorRGB(128, 0, 128)
+	ColorFruit     = tui_canvas.NewColorRGB(255, 0, 0)
+	ColorTextWhite = tui_canvas.NewColorRGB(255, 255, 255)
 )
 
 const (
@@ -194,8 +194,8 @@ func (g *Game) HandleKey(key string) {
 	}
 }
 
-func (g *Game) HandleMouse(ev tuicanvas.MouseEvent) {
-	if g.state == StateMenu && ev.Button == tuicanvas.MouseLeft && ev.IsDown {
+func (g *Game) HandleMouse(ev tui_canvas.MouseEvent) {
+	if g.state == StateMenu && ev.Button == tui_canvas.MouseLeft && ev.IsDown {
 		mx, my := int(ev.X), int(ev.Y)
 		if inRect(mx, my, g.playBtnBounds) {
 			g.resetGame()
@@ -231,12 +231,12 @@ func (g *Game) logicalToPixel(lx, ly int) (int, int) {
 		int(g.offsetY) + ly*int(g.cellSize)
 }
 
-func (g *Game) Render(canvas *tuicanvas.Canvas, text *tuicanvas.TextLayer) {
+func (g *Game) Render(canvas *tui_canvas.Canvas, text *tui_canvas.TextLayer) {
 	cW, cH := canvas.Width(), canvas.Height()
 	g.calcGrid(cW, cH)
 
 	// Фон + шахматное поле
-	canvas.FillShader(func(x, y int) tuicanvas.Color {
+	canvas.FillShader(func(x, y int) tui_canvas.Color {
 		if x >= int(g.offsetX) && x < int(g.offsetX+g.fieldPxW) &&
 			y >= int(g.offsetY) && y < int(g.offsetY+g.fieldPxH) {
 			lx := (x - int(g.offsetX)) / int(g.cellSize)
@@ -280,7 +280,7 @@ func (g *Game) Render(canvas *tuicanvas.Canvas, text *tuicanvas.TextLayer) {
 			textY = int(text.Height()) - 1
 		}
 		textX := (int(cW) - len(s)) / 2
-		text.PrintAt(textX, textY, s, tuicanvas.TransparentTextShader{TextColor: ColorTextWhite})
+		text.PrintAt(textX, textY, s, tui_canvas.TransparentTextShader{TextColor: ColorTextWhite})
 	}
 
 	if g.state == StateMenu {
@@ -288,7 +288,7 @@ func (g *Game) Render(canvas *tuicanvas.Canvas, text *tuicanvas.TextLayer) {
 	}
 }
 
-func (g *Game) renderMenu(canvas *tuicanvas.Canvas, text *tuicanvas.TextLayer, cW, cH int) {
+func (g *Game) renderMenu(canvas *tui_canvas.Canvas, text *tui_canvas.TextLayer, cW, cH int) {
 	menuW, menuH := 24, 10
 	// my — нижний край меню в TextLayer (Y вверх)
 	mx := (int(text.Width()) - menuW) / 2
@@ -300,11 +300,11 @@ func (g *Game) renderMenu(canvas *tuicanvas.Canvas, text *tuicanvas.TextLayer, c
 
 	// Полупрозрачный фон
 	canvas.FillRectShader(pxX, pxY, menuW, menuH*2,
-		func(absX, absY, relX, relY float64, idxX, idxY uint) (tuicanvas.Color, float64) {
-			return tuicanvas.ColorBlack, 0.75
+		func(absX, absY, relX, relY float64, idxX, idxY uint) (tui_canvas.Color, float64) {
+			return tui_canvas.ColorBlack, 0.75
 		})
 
-	shader := tuicanvas.TransparentTextShader{TextColor: ColorTextWhite}
+	shader := tui_canvas.TransparentTextShader{TextColor: ColorTextWhite}
 
 	scoreStr := fmt.Sprintf("Last Score: %d", g.lastScore)
 	text.PrintAt(mx+(menuW-len(scoreStr))/2, my+6, scoreStr, shader)
@@ -332,7 +332,7 @@ func (g *Game) renderMenu(canvas *tuicanvas.Canvas, text *tuicanvas.TextLayer, c
 // ==========================================
 
 func main() {
-	screen, err := tuicanvas.NewScreen("snake_debug.log")
+	screen, err := tui_canvas.NewScreen("snake_debug.log")
 	if err != nil {
 		fmt.Println("Ошибка:", err)
 		return
@@ -358,7 +358,7 @@ func main() {
 				game.accumulator -= MoveInterval
 			}
 
-			screen.Draw(func(canvas *tuicanvas.Canvas, text *tuicanvas.TextLayer) {
+			screen.Draw(func(canvas *tui_canvas.Canvas, text *tui_canvas.TextLayer) {
 				text.Clear()
 				game.Render(canvas, text)
 			})

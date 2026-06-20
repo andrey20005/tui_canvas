@@ -1,4 +1,4 @@
-package tuicanvas
+package tui_canvas
 
 // KeyEvent описывает событие нажатия клавиши или их сочетания на клавиатуре.
 type KeyEvent struct {

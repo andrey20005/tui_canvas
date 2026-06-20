@@ -1,4 +1,4 @@
-package tuicanvas
+package tui_canvas
 
 type textCell struct {
 	Is     bool // true — символ есть, false — прозрачное место

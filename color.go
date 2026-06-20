@@ -1,4 +1,4 @@
-package tuicanvas
+package tui_canvas
 
 import (
 	"fmt"

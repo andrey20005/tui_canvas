@@ -10,7 +10,7 @@ import (
 func main() {
 	// Создаем экран и включаем опциональное логирование в файл "debug.log"
 	// Если передать "", логирования не будет
-	screen, err := tuicanvas.NewScreen("debug.log")
+	screen, err := tui_canvas.NewScreen("debug.log")
 	if err != nil {
 		fmt.Println("Ошибка инициализации экрана:", err)
 		return
@@ -29,21 +29,21 @@ func main() {
 		select {
 		case <-ticker.C:
 			// НАСТУПИЛ НОВЫЙ КАДР: РЕНДЕРИНГ
-			screen.Draw(func(canvas *tuicanvas.Canvas, textLayer *tuicanvas.TextLayer) {
+			screen.Draw(func(canvas *tui_canvas.Canvas, textLayer *tui_canvas.TextLayer) {
 				// Заливаем фон красивым процедурным шейдером (синий градиент)
-				canvas.FillShaderCoords(func(x, y float64) tuicanvas.Color {
-					return tuicanvas.NewColorFloat(0.0, 0.0, (y+1.0)*0.3)
+				canvas.FillShaderCoords(func(x, y float64) tui_canvas.Color {
+					return tui_canvas.NewColorFloat(0.0, 0.0, (y+1.0)*0.3)
 				})
 
 				// Поверх шейдера рисуем кружок нашего "игрока" с помощью FillCoordsAlpha
-				canvas.FillShaderCoordsAlpha(func(x, y float64) (tuicanvas.Color, float64) {
+				canvas.FillShaderCoordsAlpha(func(x, y float64) (tui_canvas.Color, float64) {
 					// Считаем расстояние от текущих координат игрока
 					dx := x - playerX
 					dy := y - playerY
 					if dx*dx+dy*dy < 0.02 { // Маленький радиус
-						return tuicanvas.ColorYellow, 1.0
+						return tui_canvas.ColorYellow, 1.0
 					}
-					return tuicanvas.ColorBlack, 0.0
+					return tui_canvas.ColorBlack, 0.0
 				})
 			})
 
@@ -66,7 +66,7 @@ func main() {
 		case mouseEv := <-screen.MouseEvents():
 			// ОБРАБОТКА МЫШИ
 			// Если зажата левая кнопка мыши (MouseLeft), телепортируем желтый кружок туда
-			if mouseEv.Button == tuicanvas.MouseLeft && mouseEv.IsDown {
+			if mouseEv.Button == tui_canvas.MouseLeft && mouseEv.IsDown {
 				// Конвертируем индексы пикселей в координаты шейдера (-1.0..1.0)
 				fx, fy := screen.Canvas().GetCoords(mouseEv.X, mouseEv.Y)
 				playerX = fx

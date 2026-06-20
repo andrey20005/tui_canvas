@@ -1,4 +1,4 @@
-package tuicanvas
+package tui_canvas
 
 type TextShader interface {
 	Process(r rune, topPixelColor, bottomPixelColor Color) (finalRune rune, fg Color, bg Color)

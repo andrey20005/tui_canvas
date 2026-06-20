@@ -149,7 +149,7 @@ func intersect(ro, rd [3]float64, iTime float64) [3]float64 {
 	return [3]float64{resT, resY, 0.0}
 }
 
-func RenderMandelbulb(x, y, iTime float64) tuicanvas.Color {
+func RenderMandelbulb(x, y, iTime float64) tui_canvas.Color {
 	// Твой движок дает x и y в диапазоне [-1, 1], где центр в (0,0)
 	// Эмулируем нормализованные координаты q от 0 до 1 для виньетирования
 	qX := x*0.5 + 0.5
@@ -260,11 +260,11 @@ func RenderMandelbulb(x, y, iTime float64) tuicanvas.Color {
 	colG *= vignette
 	colB *= vignette
 
-	return tuicanvas.NewColorFloat(colR, colG, colB)
+	return tui_canvas.NewColorFloat(colR, colG, colB)
 }
 
 func main() {
-	screen, err := tuicanvas.NewScreen("debug.log")
+	screen, err := tui_canvas.NewScreen("debug.log")
 	if err != nil {
 		fmt.Println("Ошибка:", err)
 		return
@@ -277,7 +277,7 @@ func main() {
 
 	startTime := time.Now()
 	lastTime := time.Now()
-	textShader := tuicanvas.AutoContrastShader{}
+	textShader := tui_canvas.AutoContrastShader{}
 
 	for {
 		select {
@@ -288,9 +288,9 @@ func main() {
 
 			iTime := time.Since(startTime).Seconds()
 
-			screen.Draw(func(canvas *tuicanvas.Canvas, text *tuicanvas.TextLayer) {
+			screen.Draw(func(canvas *tui_canvas.Canvas, text *tui_canvas.TextLayer) {
 				// Отрендерить 3D Мандельбульб фрактал!
-				canvas.FillShaderCoords(func(x, y float64) tuicanvas.Color {
+				canvas.FillShaderCoords(func(x, y float64) tui_canvas.Color {
 					return RenderMandelbulb(x, y, iTime)
 				})
 

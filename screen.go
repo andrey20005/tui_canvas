@@ -1,13 +1,11 @@
-package tuicanvas
+package tui_canvas
 
 import (
 	"bufio"
 	"fmt"
 	"log"
 	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 
 	"golang.org/x/term"
 )

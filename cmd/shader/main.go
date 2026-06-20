@@ -10,7 +10,7 @@ import (
 
 // MainImageShader принимает чистые вещественные координаты x и y от холста.
 // t — это время iTime в секундах.
-func MainImageShader(x, y, t float64) tuicanvas.Color {
+func MainImageShader(x, y, t float64) tui_canvas.Color {
 	var c [3]float64
 	z := t
 
@@ -41,12 +41,12 @@ func MainImageShader(x, y, t float64) tuicanvas.Color {
 		c[i] = 0.01 / lenVec
 	}
 
-	return tuicanvas.NewColorFloat(c[0]/l, c[1]/l, c[2]/l)
+	return tui_canvas.NewColorFloat(c[0]/l, c[1]/l, c[2]/l)
 }
 
 
 func main() {
-	screen, err := tuicanvas.NewScreen("debug.log")
+	screen, err := tui_canvas.NewScreen("debug.log")
 	if err != nil {
 		fmt.Println("Ошибка:", err)
 		return
@@ -59,7 +59,7 @@ func main() {
 	startTime := time.Now()
 	lastTime := time.Now()
 
-	uiShader := tuicanvas.AutoContrastShader{}
+	uiShader := tui_canvas.AutoContrastShader{}
 
 	for {
 		select {
@@ -73,12 +73,12 @@ func main() {
 			}
 			iTime := time.Since(startTime).Seconds()
 
-			screen.Draw(func(canvas *tuicanvas.Canvas, text *tuicanvas.TextLayer) {
+			screen.Draw(func(canvas *tui_canvas.Canvas, text *tui_canvas.TextLayer) {
 				text.Clear()
 				topRow := int(text.Height()) - 2
 				text.PrintAt(1, topRow, fmt.Sprintf("FPS: %.1f", fps), uiShader)
 
-				canvas.FillShaderCoords(func(x, y float64) tuicanvas.Color {
+				canvas.FillShaderCoords(func(x, y float64) tui_canvas.Color {
 					return MainImageShader(x, y, iTime)
 				})
 			})
