@@ -13,11 +13,11 @@ import (
 // Screen управляет состоянием терминала, обрабатывает ввод и ресайз,
 // а также координирует графический и текстовый слои.
 type Screen struct {
-	canvas    *Canvas
-	textLayer *TextLayer
-
-	// Актуальные размеры
+	// Актуальные размеры терминала
 	rows, columns uint
+
+	// слои для рисования
+	layers *Layers
 
 	// Каналы для событий
 	keyChan    chan KeyEvent
@@ -30,9 +30,9 @@ type Screen struct {
 	done chan struct{}
 
 	// Рендерер
-	renderChan chan *RawFrame
-	renderWG   sync.WaitGroup
-	framePool  sync.Pool
+	displayChan chan *frame
+	renderWG    sync.WaitGroup
+	framePool   sync.Pool
 
 	oldState *term.State
 	logger   *log.Logger
@@ -57,8 +57,7 @@ func NewScreen(logPath string) (*Screen, error) {
 	}
 
 	s := &Screen{
-		canvas:             NewCanvas(uint(w), uint(h*2)),
-		textLayer:          NewTextLayer(uint(w), uint(h)),
+		layers: NewLayers(),
 		rows:               uint(h),
 		columns:            uint(w),
 		keyChan:            make(chan KeyEvent, 128),
@@ -66,14 +65,15 @@ func NewScreen(logPath string) (*Screen, error) {
 		resizeChan:         make(chan ResizeEvent, 16),
 		internalResizeChan: make(chan ResizeEvent, 16),
 		done:               make(chan struct{}),
-		renderChan:         make(chan *RawFrame, 1),
+		displayChan:        make(chan *frame, 1),
 		oldState:           oldState,
 		framePool: sync.Pool{
 			New: func() interface{} {
-				return NewRawFrame(uint(w), uint(h))
+				return NewFrame(uint(w), uint(h))
 			},
 		},
 	}
+	s.layers.acquireFrame(NewFrame(s.columns, s.rows))
 
 	if logPath != "" {
 		file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
@@ -87,9 +87,9 @@ func NewScreen(logPath string) (*Screen, error) {
 	writer.Flush()
 
 	s.renderWG.Add(1)
-	go renderLoop(s.renderChan, &s.framePool, s.done, s.log, &s.renderWG)
-	go watchResize(s.done, s.internalResizeChan)
-	go readInput(s.keyChan, s.mouseChan, s.done, s.log, func() uint { return s.canvas.Height() })
+	go displayLoop(s.displayChan, &s.framePool, s.done, s.log, &s.renderWG)
+	go watchResizeLoop(s.done, s.internalResizeChan)
+	go readInputLoop(s.keyChan, s.mouseChan, s.done, s.log, func() uint { return s.rows })
 
 	return s, nil
 }
@@ -114,45 +114,33 @@ func (s *Screen) Close() {
 	}
 }
 
-// Draw выполняет отрисовку callback-функцией и отправляет результат в рендерер.
-func (s *Screen) Draw(f func(canvas *Canvas, textLayer *TextLayer)) {
-	s.handleResize()
-	f(s.canvas, s.textLayer)
-	s.Update()
-}
+// Display подготавливает кадр и отправляет его в displayLoop.
+func (s *Screen) Display() {
+	frameToView := s.layers.returnFrame()
 
-// Update подготавливает кадр и отправляет его в рендерер.
-func (s *Screen) Update() {
-	s.handleResize()
-
-	// 1. Берем кадр из пула
-	frame := s.framePool.Get().(*RawFrame)
-
-	// 2. BuildFrom требует согласованности размеров, проверяем
-	if frame.Width() != s.columns || frame.Height() != s.rows {
-		// Если размер пула не совпал с текущим экраном, создаем новый
-		frame = NewRawFrame(s.columns, s.rows)
-	}
-
-	// 3. Строим кадр
-	frame.BuildFrom(s.canvas, s.textLayer)
-
-	// 4. Отправляем в рендерер
 	select {
-	case s.renderChan <- frame:
+	case s.displayChan <- frameToView:
 	default:
 		// Дропаем старый
-		oldFrame := <-s.renderChan
+		oldFrame := <-s.displayChan
 		s.framePool.Put(oldFrame)
-		s.renderChan <- frame
+		s.displayChan <- frameToView
 	}
+
+	// проверяем не изменились ли размеры экрана
+	s.handleResize()
+	
+	nextFrame := s.framePool.Get().(*frame)
+	if nextFrame.columns != s.columns || nextFrame.rows != s.rows {
+		nextFrame = NewFrame(s.columns, s.rows)
+	}
+	s.layers.acquireFrame(nextFrame)
 }
 
 func (s *Screen) handleResize() {
 	select {
 	case ev := <-s.internalResizeChan:
-		s.canvas.resize(ev.Width, ev.Height*2)
-		s.textLayer.Resize(ev.Width, ev.Height)
+		// нужно что-то еще вызвать тут
 		s.rows = ev.Height
 		s.columns = ev.Width
 
@@ -165,8 +153,7 @@ func (s *Screen) handleResize() {
 	}
 }
 
-func (s *Screen) Canvas() *Canvas                  { return s.canvas }
-func (s *Screen) TextLayer() *TextLayer            { return s.textLayer }
 func (s *Screen) KeyEvents() <-chan KeyEvent       { return s.keyChan }
 func (s *Screen) MouseEvents() <-chan MouseEvent   { return s.mouseChan }
 func (s *Screen) ResizeEvents() <-chan ResizeEvent { return s.resizeChan }
+func (s *Screen) Layers() *Layers                   { return s.layers }

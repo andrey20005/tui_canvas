@@ -12,13 +12,13 @@ import (
 // ==========================================
 
 var (
-	ColorBg        = tui_canvas.NewColorRGB(5, 15, 5)
-	ColorChess1    = tui_canvas.NewColorRGB(35, 110, 35)
-	ColorChess2    = tui_canvas.NewColorRGB(40, 130, 40)
-	ColorSnakeHead = tui_canvas.NewColorRGB(255, 140, 0)
-	ColorSnakeTail = tui_canvas.NewColorRGB(128, 0, 128)
-	ColorFruit     = tui_canvas.NewColorRGB(255, 0, 0)
-	ColorTextWhite = tui_canvas.NewColorRGB(255, 255, 255)
+	ColorBg        = tui_canvas.NewRGBUint(5, 15, 5)
+	ColorChess1    = tui_canvas.NewRGBUint(35, 110, 35)
+	ColorChess2    = tui_canvas.NewRGBUint(40, 130, 40)
+	ColorSnakeHead = tui_canvas.NewRGBUint(255, 140, 0)
+	ColorSnakeTail = tui_canvas.NewRGBUint(128, 0, 128)
+	ColorFruit     = tui_canvas.NewRGBUint(255, 0, 0)
+	ColorTextWhite = tui_canvas.NewRGBUint(255, 255, 255)
 )
 
 const (
@@ -216,7 +216,7 @@ func inRect(x, y int, b [4]int) bool {
 
 func (g *Game) calcGrid(cW, cH uint) {
 	g.cellSize = (cH - 2) / FieldSize
-	if (cW < cH) {
+	if cW < cH {
 		g.cellSize = (cW - 2) / FieldSize
 	}
 	g.fieldPxW = uint(FieldSize) * g.cellSize
@@ -236,7 +236,7 @@ func (g *Game) Render(canvas *tui_canvas.Canvas, text *tui_canvas.TextLayer) {
 	g.calcGrid(cW, cH)
 
 	// Фон + шахматное поле
-	canvas.FillShader(func(x, y int) tui_canvas.Color {
+	canvas.FillShader(func(x, y int) tui_canvas.RGB {
 		if x >= int(g.offsetX) && x < int(g.offsetX+g.fieldPxW) &&
 			y >= int(g.offsetY) && y < int(g.offsetY+g.fieldPxH) {
 			lx := (x - int(g.offsetX)) / int(g.cellSize)
@@ -300,7 +300,7 @@ func (g *Game) renderMenu(canvas *tui_canvas.Canvas, text *tui_canvas.TextLayer,
 
 	// Полупрозрачный фон
 	canvas.FillRectShader(pxX, pxY, menuW, menuH*2,
-		func(absX, absY, relX, relY float64, idxX, idxY uint) (tui_canvas.Color, float64) {
+		func(absX, absY, relX, relY float64, idxX, idxY uint) (tui_canvas.RGB, float64) {
 			return tui_canvas.ColorBlack, 0.75
 		})
 

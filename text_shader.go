@@ -1,42 +1,34 @@
 package tui_canvas
 
 type TextShader interface {
-	Process(r rune, topPixelColor, bottomPixelColor Color) (finalRune rune, fg Color, bg Color)
+	Process(r rune, c RGB) (finalRune rune, fg RGB, bg RGB)
 }
 
-type TransparentTextShader struct { TextColor Color }
+type TransparentTextShader struct{ TextColor RGB }
 
-func (s TransparentTextShader) Process(r rune, top, bottom Color) (rune, Color, Color) {
-	// Фоном буквы становится среднее арифметическое пикселей под ней (эффект стекла)
-	bg := top.Mix(bottom, 0.5)
-	return r, s.TextColor, bg
+func (s TransparentTextShader) Process(r rune, c RGB) (rune, RGB, RGB) {
+	return r, s.TextColor, c 
 }
 
-type AutoContrastShader struct{}
+type AutoContrastShader struct{} 
 
-func (s AutoContrastShader) Process(r rune, top, bottom Color) (rune, Color, Color) {
-	bg := top.Mix(bottom, 0.5)
-	
-	brightness := bg.Brightness()
-	
+func (s AutoContrastShader) Process(r rune, c RGB) (rune, RGB, RGB) {
+	brightness := c.Brightness()
+
 	fg := ColorWhite // По умолчанию текст белый
 	if brightness > 0.5 {
 		fg = ColorBlack // Если фон слишком яркий, делаем текст черным для читаемости
 	}
-	
-	return r, fg, bg
+
+	return r, fg, c 
 }
 
 type GlassShader struct {
-	TextColor Color
-	BgColor   Color
+	TextColor RGB
+	BgColor   RGB
 	BgAlpha   float64
 }
 
-func (s GlassShader) Process(r rune, top, bottom Color) (rune, Color, Color) {
-	canvasBg := top.Mix(bottom, 0.5)
-	// Смешиваем кастомный цвет фона с фоном холста
-	finalBg := canvasBg.Mix(s.BgColor, s.BgAlpha)
-	return r, s.TextColor, finalBg
+func (s GlassShader) Process(r rune, c RGB) (rune, RGB, RGB) {
+	return r, s.TextColor, c.Mix(s.BgColor, s.BgAlpha)
 }
-

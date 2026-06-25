@@ -6,14 +6,14 @@ import (
 	"strings"
 )
 
-// readInput непрерывно считывает байты из стандартного ввода,
+// readInputLoop непрерывно считывает байты из стандартного ввода,
 // распознает клавиши и события мыши, и отправляет их в соответствующие каналы.
-func readInput(
+func readInputLoop(
 	keyChan chan<- KeyEvent,
 	mouseChan chan<- MouseEvent,
 	done <-chan struct{},
 	logFunc func(string),
-	getCanvasHeight func() uint,
+	getFrameRows func() uint,
 ) {
 	buf := make([]byte, 1024)
 	for {
@@ -41,7 +41,7 @@ func readInput(
 
 		// Обработка событий мыши SGR (начинаются с "\x1b[<")
 		if n > 3 && bytes[0] == 27 && bytes[1] == '[' && bytes[2] == '<' {
-			if ev, ok := parseMouseEvent(string(bytes), getCanvasHeight, logFunc); ok {
+			if ev, ok := parseMouseEvent(string(bytes), getFrameRows, logFunc); ok {
 				select {
 				case mouseChan <- ev:
 				default:
@@ -135,7 +135,7 @@ func sendKey(keyChan chan<- KeyEvent, ev KeyEvent, logFunc func(string)) {
 }
 
 // parseMouseEvent декодирует строку формата SGR "\x1b[<button>;<x>;<y>M" (или m)
-func parseMouseEvent(mouseStr string, getCanvasHeight func() uint, logFunc func(string)) (MouseEvent, bool) {
+func parseMouseEvent(mouseStr string, getFrameRows func() uint, logFunc func(string)) (MouseEvent, bool) {
 	str := mouseStr[3:]
 	isDown := true
 	if strings.HasSuffix(str, "m") {
@@ -160,7 +160,7 @@ func parseMouseEvent(mouseStr string, getCanvasHeight func() uint, logFunc func(
 	xIdx := uint(termX - 1)
 	yRow := uint(termY - 1)
 
-	termHeight := getCanvasHeight() / 2
+	termHeight := getFrameRows()
 	if yRow >= termHeight {
 		logFunc(fmt.Sprintf("Событие мыши отклонено: Y-строка (%d) вне диапазона холста (%d)", yRow, termHeight))
 		return MouseEvent{}, false

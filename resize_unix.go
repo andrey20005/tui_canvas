@@ -11,7 +11,7 @@ import (
 )
 
 // watchResizeUnix слушает системный сигнал SIGWINCH
-func watchResize(done chan struct{}, resizeChan chan ResizeEvent) {
+func watchResizeLoop(done chan struct{}, resizeChan chan ResizeEvent) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGWINCH)
 	defer signal.Stop(sigChan)

@@ -7,17 +7,18 @@ import (
 )
 
 // Canvas представляет собой двумерный холст для рисования в терминале.
+// Ось y везде направленна вверх, строчка с нулевым индексом нижняя
 type Canvas struct {
-	data   [][]Color
+	data   [][]RGB
 	width  uint
 	height uint
 }
 
 // NewCanvas создает новый холст заданного размера, заполненный черным цветом.
 func NewCanvas(width, height uint) *Canvas {
-	data := make([][]Color, height)
+	data := make([][]RGB, height)
 	for y := uint(0); y < height; y++ {
-		data[y] = make([]Color, width)
+		data[y] = make([]RGB, width)
 		for x := uint(0); x < width; x++ {
 			data[y][x] = ColorBlack
 		}
@@ -38,9 +39,9 @@ func (c *Canvas) resize(newW, newH uint) {
 	}
 
 	// Создаем новую матрицу, заполненную черным цветом
-	newData := make([][]Color, newH)
+	newData := make([][]RGB, newH)
 	for y := uint(0); y < newH; y++ {
-		newData[y] = make([]Color, newW)
+		newData[y] = make([]RGB, newW)
 		for x := uint(0); x < newW; x++ {
 			newData[y][x] = ColorBlack
 		}
@@ -82,7 +83,7 @@ func (c *Canvas) Height() uint { return c.height }
 
 // Fill закрашивает весь холст одним сплошным цветом.
 // Это самый быстрый способ очистить экран или задать базовый фон.
-func (c *Canvas) Fill(color Color) {
+func (c *Canvas) Fill(color RGB) {
 	for y := uint(0); y < c.height; y++ {
 		for x := uint(0); x < c.width; x++ {
 			c.data[y][x] = color
@@ -91,10 +92,10 @@ func (c *Canvas) Fill(color Color) {
 }
 
 // Кастомные типы функций для удобства сигнатур
-type ShaderFn func(x, y int) Color
-type ShaderAlphaFn func(x, y int) (Color, float64)
-type ShaderCoordsFn func(x, y float64) Color
-type ShaderCoordsAlphaFn func(x, y float64) (Color, float64)
+type ShaderFn func(x, y int) RGB
+type ShaderAlphaFn func(x, y int) (RGB, float64)
+type ShaderCoordsFn func(x, y float64) RGB
+type ShaderCoordsAlphaFn func(x, y float64) (RGB, float64)
 
 // FillShader индицирует каждый пиксель по его целочисленным индексам (x, y)
 func (c *Canvas) FillShader(shader ShaderFn) {
@@ -142,7 +143,7 @@ func (c *Canvas) FillShaderCoords(shader ShaderCoordsFn) {
 	c.parallelY(func(y uint) {
 		// Вычисляем fy напрямую для конкретной строки через замыкание
 		fy := float64(y)*k + by
-		
+
 		for x := uint(0); x < c.width; x++ {
 			// Вычисляем fx напрямую для конкретного пикселя
 			fx := float64(x)*k + bx
@@ -175,7 +176,7 @@ func (c *Canvas) FillShaderCoordsAlpha(shader ShaderCoordsAlphaFn) {
 	c.parallelY(func(y uint) {
 		// Вычисляем fy напрямую для строки через замыкание коэффициентов
 		fy := float64(y)*k + by
-		
+
 		for x := uint(0); x < c.width; x++ {
 			// Вычисляем fx напрямую для пикселя
 			fx := float64(x)*k + bx
@@ -248,7 +249,7 @@ func (c *Canvas) parallelY(worker func(yIdx uint)) {
 			for {
 				// Берем следующую доступную строку и сдвигаем счетчик на 1 вперед
 				y := atomic.AddUint64(&currentY, 1) - 1
-				
+
 				// Если все строки разобраны — воркер завершает работу
 				if y >= targetY {
 					return
@@ -265,14 +266,14 @@ func (c *Canvas) parallelY(worker func(yIdx uint)) {
 }
 
 // At возвращает цвет пикселя по указанным индексам.
-func (c *Canvas) At(x, y int) Color {
+func (c *Canvas) At(x, y int) RGB {
 	if x >= int(c.width) || y >= int(c.height) || x < 0 || y < 0 {
 		return ColorBlack
 	}
 	return c.data[y][x]
 }
 
-func (c *Canvas) Set(x, y int, color Color) {
+func (c *Canvas) Set(x, y int, color RGB) {
 	if x >= 0 && y >= 0 && uint(x) < c.width && uint(y) < c.height {
 		c.data[y][x] = color
 	}

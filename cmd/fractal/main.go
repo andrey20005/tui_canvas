@@ -82,13 +82,13 @@ func softshadow(ro, rd [3]float64, k, iTime float64) float64 {
 // Расчет нормалей методом конечных разностей (аналог nor в GLSL)
 func estimateNormal(pos [3]float64, iTime float64) [3]float64 {
 	eps := 0.002
-	
+
 	pX1 := scene([3]float64{pos[0] + eps, pos[1], pos[2]}, iTime)[0]
 	pX2 := scene([3]float64{pos[0] - eps, pos[1], pos[2]}, iTime)[0]
-	
+
 	pY1 := scene([3]float64{pos[0], pos[1] + eps, pos[2]}, iTime)[0]
 	pY2 := scene([3]float64{pos[0], pos[1] - eps, pos[2]}, iTime)[0]
-	
+
 	pZ1 := scene([3]float64{pos[0], pos[1], pos[2] + eps}, iTime)[0]
 	pZ2 := scene([3]float64{pos[0], pos[1], pos[2] - eps}, iTime)[0]
 
@@ -149,7 +149,7 @@ func intersect(ro, rd [3]float64, iTime float64) [3]float64 {
 	return [3]float64{resT, resY, 0.0}
 }
 
-func RenderMandelbulb(x, y, iTime float64) tui_canvas.Color {
+func RenderMandelbulb(x, y, iTime float64) tui_canvas.RGB {
 	// Твой движок дает x и y в диапазоне [-1, 1], где центр в (0,0)
 	// Эмулируем нормализованные координаты q от 0 до 1 для виньетирования
 	qX := x*0.5 + 0.5
@@ -176,7 +176,7 @@ func RenderMandelbulb(x, y, iTime float64) tui_canvas.Color {
 	}
 
 	// Вектор cu (cross product бока и направления)
-	cuX := csZ*cfY
+	cuX := csZ * cfY
 	cuY := csX*cfZ - csZ*cfX
 	cuZ := -csX * cfY
 
@@ -189,12 +189,12 @@ func RenderMandelbulb(x, y, iTime float64) tui_canvas.Color {
 
 	// Окружение: свет, небо и бэкграунд
 	sundir := [3]float64{0.1, 0.8, 0.6}
-	
+
 	bgR := math.Exp(y-2.0) * 0.4
 	bgG := math.Exp(y-2.0) * 1.6
 	bgB := math.Exp(y-2.0) * 1.0
 
-	halo := math.Max(0.0, math.Min(1.0, (-ro[0]*rd[0] - ro[1]*rd[1] - ro[2]*rd[2])/math.Sqrt(ro[0]*ro[0]+ro[1]*ro[1]+ro[2]*ro[2])))
+	halo := math.Max(0.0, math.Min(1.0, (-ro[0]*rd[0]-ro[1]*rd[1]-ro[2]*rd[2])/math.Sqrt(ro[0]*ro[0]+ro[1]*ro[1]+ro[2]*ro[2])))
 	haloPower := math.Pow(halo, 17.0)
 
 	colR := bgR + 1.0*haloPower
@@ -212,7 +212,7 @@ func RenderMandelbulb(x, y, iTime float64) tui_canvas.Color {
 		dif := math.Max(0.0, n[0]*sundir[0]+n[1]*sundir[1]+n[2]*sundir[2])
 		sky := 0.6 + 0.4*math.Max(0.0, n[1])
 		bac := math.Max(0.0, 0.3+0.7*(-sundir[0]*n[0]-1.0*n[1]-sundir[2]*n[2]))
-		
+
 		// Рефлект вектора rd относительно нормали n
 		dotRDN := rd[0]*n[0] + rd[1]*n[1] + rd[2]*n[2]
 		refX := rd[0] - 2.0*dotRDN*n[0]
@@ -251,16 +251,16 @@ func RenderMandelbulb(x, y, iTime float64) tui_canvas.Color {
 	colB = colB*0.6 + 0.4*colB*colB*(3.0-2.0*colB)
 
 	gray := (colR + colG + colB) * 0.333
-	colR = colR*(1.0 - (-0.5)) + gray*(-0.5)
-	colG = colG*(1.0 - (-0.5)) + gray*(-0.5)
-	colB = colB*(1.0 - (-0.5)) + gray*(-0.5)
+	colR = colR*(1.0-(-0.5)) + gray*(-0.5)
+	colG = colG*(1.0-(-0.5)) + gray*(-0.5)
+	colB = colB*(1.0-(-0.5)) + gray*(-0.5)
 
 	vignette := 0.5 + 0.5*math.Pow(16.0*qX*qY*(1.0-qX)*(1.0-qY), 0.7)
 	colR *= vignette
 	colG *= vignette
 	colB *= vignette
 
-	return tui_canvas.NewColorFloat(colR, colG, colB)
+	return tui_canvas.NewRGB(colR, colG, colB)
 }
 
 func main() {
@@ -271,32 +271,40 @@ func main() {
 	}
 	defer screen.Close()
 
-	// 3D Рэймэйчинг тяжелый, поэтому ставим лимит тикера поспокойнее (например, ~30 кадров)
+	layers := screen.Layers()
+	canvas := layers.Canvas()
+	text := layers.Text()
+
 	ticker := time.NewTicker(time.Second / 60)
 	defer ticker.Stop()
 
 	startTime := time.Now()
 	lastTime := time.Now()
-	textShader := tui_canvas.AutoContrastShader{}
+
+	uiShader := tui_canvas.AutoContrastShader{}
 
 	for {
 		select {
 		case <-ticker.C:
 			now := time.Now()
-			fps := 1.0 / now.Sub(lastTime).Seconds()
+			frameTime := now.Sub(lastTime)
 			lastTime = now
-
+			var fps float64
+			if frameTime.Seconds() > 0 {
+				fps = 1.0 / frameTime.Seconds()
+			}
 			iTime := time.Since(startTime).Seconds()
 
-			screen.Draw(func(canvas *tui_canvas.Canvas, text *tui_canvas.TextLayer) {
-				// Отрендерить 3D Мандельбульб фрактал!
-				canvas.FillShaderCoords(func(x, y float64) tui_canvas.Color {
-					return RenderMandelbulb(x, y, iTime)
-				})
+			text.Clear()
+			topRow := int(text.Height()) - 2
+			text.PrintAt(1, topRow, fmt.Sprintf("FPS: %.1f", fps), uiShader)
 
-				text.Clear()
-				text.PrintAt(1, int(text.Height())-2, fmt.Sprintf("MANDELBULB 3D | FPS: %.1f", fps), textShader)
+			canvas.FillShaderCoords(func(x, y float64) tui_canvas.RGB {
+				return RenderMandelbulb(x, y, iTime)
 			})
+
+			layers.RenderLayers()
+			screen.Display()
 
 		case keyEv := <-screen.KeyEvents():
 			if keyEv.Key == "escape" || keyEv.Key == "q" || keyEv.Key == "ctrl+c" {

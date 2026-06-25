@@ -7,17 +7,17 @@ import (
 	"sync"
 )
 
-// renderLoop запускается в отдельной горутине, монопольно владеет stdout
+// displayLoop запускается в отдельной горутине, монопольно владеет stdout
 // и выводит кадры по мере их поступления.
-func renderLoop(
-	renderChan <-chan *RawFrame,
+func displayLoop(
+	renderChan <-chan *frame,
 	framePool *sync.Pool,
 	done <-chan struct{},
 	logFunc func(string),
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
-	var lastFrame *RawFrame
+	var lastFrame *frame
 	writer := bufio.NewWriterSize(os.Stdout, 256*1024)
 
 	for {
@@ -31,7 +31,7 @@ func renderLoop(
 		case frame := <-renderChan:
 			render(writer, lastFrame, frame)
 			writer.Flush()
-			
+
 			// Возвращаем старый кадр в пул, а текущий запоминаем как последний
 			if lastFrame != nil {
 				framePool.Put(lastFrame)
@@ -42,24 +42,25 @@ func renderLoop(
 }
 
 // render выбирает стратегию отрисовки
-func render(writer *bufio.Writer, lastFrame, currentFrame *RawFrame) {
-	if lastFrame == nil || 
-	   lastFrame.Width() != currentFrame.Width() || 
-	   lastFrame.Height() != currentFrame.Height() {
-		simpleRender(writer, currentFrame)
-	} else {
-		optimizedRender(writer, lastFrame, currentFrame)
-	}
+func render(writer *bufio.Writer, lastFrame, currentFrame *frame) {
+	simpleRender(writer, currentFrame)
+	// if lastFrame == nil ||
+	// 	lastFrame.Width() != currentFrame.Width() ||
+	// 	lastFrame.Height() != currentFrame.Height() {
+	// 	simpleRender(writer, currentFrame)
+	// } else {
+	// 	optimizedRender(writer, lastFrame, currentFrame)
+	// }
 }
 
 // simpleRender производит полную перерисовку
-func simpleRender(writer *bufio.Writer, frame *RawFrame) {
+func simpleRender(writer *bufio.Writer, frame *frame) {
 	w, h := frame.Width(), frame.Height()
 	writer.WriteString("\x1b[H")
 
 	for y := int(h) - 1; y >= 0; y-- {
 		writer.WriteString("\x1b[")
-		writer.WriteString(strconv.Itoa(int(h)-y))
+		writer.WriteString(strconv.Itoa(int(h) - y))
 		writer.WriteString(";1H")
 		for x := uint(0); x < w; x++ {
 			writeCell(writer, frame.cells[y][x])
@@ -69,7 +70,7 @@ func simpleRender(writer *bufio.Writer, frame *RawFrame) {
 }
 
 // optimizedRender обновляет только изменившиеся ячейки
-func optimizedRender(writer *bufio.Writer, lastFrame, currentFrame *RawFrame) {
+func optimizedRender(writer *bufio.Writer, lastFrame, currentFrame *frame) {
 	w, h := currentFrame.Width(), currentFrame.Height()
 	cursorX, cursorY := -1, -1
 
@@ -99,7 +100,7 @@ func optimizedRender(writer *bufio.Writer, lastFrame, currentFrame *RawFrame) {
 }
 
 // writeCell записывает цвета и символ ячейки
-func writeCell(writer *bufio.Writer, cell TerminalCell) {
+func writeCell(writer *bufio.Writer, cell terminalCell) {
 	topRGB := cell.Fg.ToRGB()
 	bottomRGB := cell.Bg.ToRGB()
 

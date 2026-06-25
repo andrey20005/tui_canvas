@@ -48,11 +48,15 @@ func (tl *TextLayer) Resize(newW, newH uint) {
 
 	for y := uint(0); y < tl.height; y++ {
 		ny := int(y) + dy
-		if ny < 0 || ny >= int(newH) { continue }
+		if ny < 0 || ny >= int(newH) {
+			continue
+		}
 
 		for x := uint(0); x < tl.width; x++ {
 			nx := int(x) + dx
-			if nx < 0 || nx >= int(newW) { continue }
+			if nx < 0 || nx >= int(newW) {
+				continue
+			}
 
 			newData[ny][nx] = tl.data[y][x]
 		}
@@ -60,7 +64,6 @@ func (tl *TextLayer) Resize(newW, newH uint) {
 
 	tl.data, tl.width, tl.height = newData, newW, newH
 }
-
 
 // PrintAt записывает строку текста в указанные координаты, используя выбранный шейдер.
 // Метод полностью безопасен: принимает любые координаты (даже отрицательные) и мягко отсекает лишнее.
@@ -104,3 +107,36 @@ func (tl *TextLayer) Width() uint { return tl.width }
 
 // Height возвращает высоту текстового слоя.
 func (tl *TextLayer) Height() uint { return tl.height }
+
+func (tl *TextLayer) renderIntoFrame(f *frame) {
+	if f == nil {
+		return
+	}
+
+	for y := uint(0); y < f.rows; y++ {
+		for x := uint(0); x < f.columns; x++ {
+			cell := tl.data[y][x]
+			if !cell.Is {
+				continue
+			}
+
+			// Получаем текущий фон из frame, пока так
+			c := NewRGB(0, 0, 0)
+
+			if cell.Shader != nil {
+				finalRune, fg, finalBg := cell.Shader.Process(cell.Rune, c)
+				f.cells[y][x] = terminalCell{
+					Rune: finalRune,
+					Fg:   fg,
+					Bg:   finalBg,
+				}
+			} else {
+				f.cells[y][x] = terminalCell{
+					Rune: cell.Rune,
+					Fg:   NewRGBUint(255, 255, 255),
+					Bg:   c,
+				}
+			}
+		}
+	}
+}

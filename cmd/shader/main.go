@@ -10,7 +10,7 @@ import (
 
 // MainImageShader принимает чистые вещественные координаты x и y от холста.
 // t — это время iTime в секундах.
-func MainImageShader(x, y, t float64) tui_canvas.Color {
+func MainImageShader(x, y, t float64) tui_canvas.RGB {
 	var c [3]float64
 	z := t
 
@@ -24,15 +24,19 @@ func MainImageShader(x, y, t float64) tui_canvas.Color {
 
 	for i := 0; i < 3; i++ {
 		z += 0.07
-		
+
 		factor := (math.Sin(z) + 1.0) * math.Abs(math.Sin(l*9.0-z-z))
 		nextUvX := uvX + (x/l)*factor
 		nextUvY := uvY + (y/l)*factor
 
 		modX := math.Mod(nextUvX, 1.0)
-		if modX < 0 { modX += 1.0 }
+		if modX < 0 {
+			modX += 1.0
+		}
 		modY := math.Mod(nextUvY, 1.0)
-		if modY < 0 { modY += 1.0 }
+		if modY < 0 {
+			modY += 1.0
+		}
 
 		lenVec := math.Sqrt((modX-0.5)*(modX-0.5) + (modY-0.5)*(modY-0.5))
 		if lenVec == 0 {
@@ -41,9 +45,8 @@ func MainImageShader(x, y, t float64) tui_canvas.Color {
 		c[i] = 0.01 / lenVec
 	}
 
-	return tui_canvas.NewColorFloat(c[0]/l, c[1]/l, c[2]/l)
+	return tui_canvas.NewRGB(c[0]/l, c[1]/l, c[2]/l)
 }
-
 
 func main() {
 	screen, err := tui_canvas.NewScreen("debug.log")
@@ -52,6 +55,10 @@ func main() {
 		return
 	}
 	defer screen.Close()
+
+	layers := screen.Layers()
+	canvas := layers.Canvas()
+	text := layers.Text()
 
 	ticker := time.NewTicker(time.Second / 60)
 	defer ticker.Stop()
@@ -73,15 +80,16 @@ func main() {
 			}
 			iTime := time.Since(startTime).Seconds()
 
-			screen.Draw(func(canvas *tui_canvas.Canvas, text *tui_canvas.TextLayer) {
-				text.Clear()
-				topRow := int(text.Height()) - 2
-				text.PrintAt(1, topRow, fmt.Sprintf("FPS: %.1f", fps), uiShader)
+			text.Clear()
+			topRow := int(text.Height()) - 2
+			text.PrintAt(1, topRow, fmt.Sprintf("FPS: %.1f", fps), uiShader)
 
-				canvas.FillShaderCoords(func(x, y float64) tui_canvas.Color {
-					return MainImageShader(x, y, iTime)
-				})
+			canvas.FillShaderCoords(func(x, y float64) tui_canvas.RGB {
+				return MainImageShader(x, y, iTime)
 			})
+
+			layers.RenderLayers()
+			screen.Display()
 
 		case keyEv := <-screen.KeyEvents():
 			if keyEv.Key == "escape" || keyEv.Key == "q" || keyEv.Key == "ctrl+c" {
