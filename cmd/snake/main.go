@@ -358,10 +358,17 @@ func main() {
 				game.accumulator -= MoveInterval
 			}
 
-			screen.Draw(func(canvas *tui_canvas.Canvas, text *tui_canvas.TextLayer) {
-				text.Clear()
-				game.Render(canvas, text)
-			})
+			// screen.Draw(func(canvas *tui_canvas.Canvas, text *tui_canvas.TextLayer) {
+			// 	text.Clear()
+			// 	game.Render(canvas, text)
+			// })
+			layers := screen.Layers()
+			canvas := layers.Canvas()
+			text := layers.Text()
+			text.Clear()
+			game.Render(canvas, text)
+			layers.RenderLayers()
+			screen.Display()
 
 			if game.quitRequested {
 				return
